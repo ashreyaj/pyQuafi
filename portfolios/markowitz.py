@@ -27,47 +27,62 @@ class Markowitz:
     def calc_logReturns(self):
         data = self.get_data()
         return np.log(data/data.shift(1))
+    
+    def riskReturn_portfolio(self, weights, returns):
+        meanAnnualReturns = returns.mean() * self.tradingDays
+        covAnnualReturns = returns.cov() * self.tradingDays
 
-    def statistics_portfolio(self):
-        logReturns = self.calc_logReturns()
-
-        # stock-wise historical mean and variance of annual returns
-        meanAnnualReturns = logReturns.mean() * self.tradingDays
-        covAnnualReturns = logReturns.cov() * self.tradingDays
-
-        return meanAnnualReturns, covAnnualReturns
+        expectedReturn = (meanAnnualReturns * weights).sum()
+        expectedRisk = np.sqrt(np.dot(weights.T, np.dot(covAnnualReturns, weights)))
+        return expectedReturn, expectedRisk, expectedReturn / expectedRisk
 
     def generate_portfolios(self):
         portfolioReturns = []
         portfolioRisks = []
         portfolioWeights = []
 
-        meanAnnualReturns, covAnnualReturns = self.statistics_portfolio()
+        returns = self.calc_logReturns()
 
         for _ in range(self.numberPortfolios):
             weights = np.random.rand(len(stocks))
             weights /= np.sum(weights)
             portfolioWeights.append(weights)
-            portfolioReturns.append((meanAnnualReturns * weights).sum())
-            portfolioRisks.append(np.sqrt(np.dot(weights.T, np.dot(covAnnualReturns, weights))))
+            pReturn, pRisk, _ = self.riskReturn_portfolio(weights, returns)
+            portfolioReturns.append(pReturn)
+            portfolioRisks.append(pRisk)
 
         portfolioReturns = np.array(portfolioReturns)
         portfolioRisks = np.array(portfolioRisks)
         sharpe = portfolioReturns / portfolioRisks
 
         return portfolioWeights, portfolioReturns, portfolioRisks, sharpe
+    
+    def optimize_sharpe(self, weights, returns):
+        return -self.riskReturn_portfolio(weights, returns)[2]
+    
+    def optimal_portfolio(self, weights, returns):
+        # flags for the optimizer
+        constraint = {'type':'eq', 'fun': lambda x: x.sum() - 1}
+        bounds = [(0,1) for _ in range(len(self.stocks))]
+        opt = scipy.optimize.minimize(self.optimize_sharpe, weights[0], bounds=bounds, constraints=constraint, args=returns)
+        bestWeights = opt['x'].round(3)
+        bestReturn, bestRisk, bestSharpe = self.riskReturn_portfolio(bestWeights, returns)
+        return bestReturn, bestRisk, bestSharpe
 
-    def plot_portfolios(self):
-        _, returns, risks, sharpe = self.generate_portfolios()
+    def plot_portfolios(self, returns, risks, sharpe):
         plt.figure()
-        plt.scatter(risks, returns, c=sharpe, marker='o')
-        plt.xlabel('Expected risk')
-        plt.ylabel('Expected returns')
+        plt.scatter(risks, returns, c=sharpe, marker='o', cmap='viridis')
+        plt.xlabel('Portfolio volatility')
+        plt.ylabel('Portfolio return')
         plt.colorbar(label='Sharpe ratio')
+
+    def plot_best_portfolio(self, bestReturn, bestRisk):
+        plt.plot(bestRisk, bestReturn, 'red', marker='*')
         plt.show()
 
 if __name__ == '__main__':
 
+    # --- Requisite data ---
     # stocks in the portfolio
     stocks = ['AAPL', 'WMT', 'TSLA', 'GE', 'AMZN', 'DB']
 
@@ -81,7 +96,12 @@ if __name__ == '__main__':
     # number of sample portfolios to generate
     numberPortfolios = 10000
 
-    # run Markowitz
+    # --- Markowitz model ---
     np.random.seed(1)
     M = Markowitz(stocks, start, end, tradingDays, numberPortfolios)
-    M.plot_portfolios()
+
+    # statistics related to each of the possible portfolios
+    portfolioWeights, portfolioReturns, portfolioRisks, sharpe = M.generate_portfolios()
+    bestReturn, bestRisk, bestSharpe = M.optimal_portfolio(portfolioWeights, M.calc_logReturns())
+    fig = M.plot_portfolios(portfolioReturns, portfolioRisks, sharpe)
+    M.plot_best_portfolio(bestReturn, bestRisk)
