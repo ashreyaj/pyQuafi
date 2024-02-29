@@ -1,7 +1,4 @@
 import numpy as np
-import sys
-import os
-sys.path.append(os.path.join(os.path.dirname(sys.path[0]),'tvm'))
 import presentValue as pv
 
 class ZeroCouponBond:
@@ -65,6 +62,4 @@ if __name__ == "__main__":
     m = 5
     c = 0.0
     bond = ZeroCouponBond(P, T, r)
-    print(bond.fairBondPrice())
     cbond = CouponBond(P, T, r, c, m)
-    print(cbond.fairBondPrice())
