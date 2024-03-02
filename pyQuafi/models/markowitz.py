@@ -17,7 +17,7 @@ class Markowitz:
         data = {}
         for s in self.stocks:
             ticker = yf.Ticker(s)
-            data[s] = ticker.history(start=start, end=end)['Close']
+            data[s] = ticker.history(start=self.start, end=self.end)['Close']
         return pd.DataFrame(data)
 
     def plot_price(self):
@@ -44,7 +44,7 @@ class Markowitz:
         returns = self.calc_logReturns()
 
         for _ in range(self.numberPortfolios):
-            weights = np.random.rand(len(stocks))
+            weights = np.random.rand(len(self.stocks))
             weights /= np.sum(weights)
             portfolioWeights.append(weights)
             pReturn, pRisk, _ = self.riskReturn_portfolio(weights, returns)
@@ -67,12 +67,13 @@ class Markowitz:
         opt = scipy.optimize.minimize(self.optimize_sharpe, weights[0], bounds=bounds, constraints=constraint, args=returns)
         bestWeights = opt['x'].round(3)
         bestReturn, bestRisk, bestSharpe = self.riskReturn_portfolio(bestWeights, returns)
+        print("Optimal portfolio weights:",dict(zip(self.stocks,bestWeights)))
         return bestReturn, bestRisk, bestSharpe
 
     def plot_portfolios(self, returns, risks, sharpe):
         plt.figure()
         plt.scatter(risks, returns, c=sharpe, marker='o', cmap='viridis')
-        plt.xlabel('Portfolio volatility')
+        plt.xlabel('Portfolio risk')
         plt.ylabel('Portfolio return')
         plt.colorbar(label='Sharpe ratio')
 
