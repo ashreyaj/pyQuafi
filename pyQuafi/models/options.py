@@ -29,6 +29,11 @@ class BlackScholes:
         dminus = (1 / (self.sigma * np.sqrt(self.T - self.t))) * (np.log(self.S0 / self.K) + (self.r - self.sigma**2 / 2)*(self.T - self.t))
         return - self.S0 * norm.cdf(-dplus) + self.K * np.exp(-self.r * (self.T - self.t)) * norm.cdf(-dminus)
     
+    def vega(self):
+        dplus = (1 / (self.sigma * np.sqrt(self.T - self.t))) * (np.log(self.S0 / self.K) + (self.r + self.sigma**2 / 2)*(self.T - self.t))
+        Nprime = (1/np.sqrt(2*np.pi)) * np.exp(-dplus**2/2)
+        return self.S0 * Nprime * np.sqrt(self.T - self.t)
+    
 class MonteCarlo:
     def __init__(self, S0, K, T, t, r, drift, sigma, iterations):
         self.S0 = S0
