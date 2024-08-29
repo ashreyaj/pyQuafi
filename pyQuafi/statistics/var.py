@@ -28,15 +28,6 @@ class VaR:
         data.dropna(inplace=True)
         return data
     
-    # def var_historical(self):
-    #     data = self.returns()
-    #     var_data = {}
-    #     for s in self.stocks:
-    #         mu = data[f'{s} Returns'].mean()
-    #         sigma = data[f'{s} Returns'].std()
-    #         var_data[s] = self.investment[s] * (mu * self.nDays - np.sqrt(self.nDays) * sigma * norm.ppf(1-self.confidence))
-    #     return var_data
-    
 class VaR_historical(VaR):
     def __init__(self, stocks, investment, confidence, nDays, start, end):
         super().__init__(stocks, investment, confidence, nDays, start, end)
