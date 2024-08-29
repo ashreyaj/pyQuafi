@@ -41,6 +41,15 @@ class VaR_historical(VaR):
             var_data[s] = self.investment[s] * (mu * self.nDays - np.sqrt(self.nDays) * sigma * norm.ppf(1-self.confidence))
         return var_data
     
+    def cvar(self):
+        data = self.returns()
+        var = self.var()
+        cvar_data = {}
+        for s in self.stocks:
+            lt_var = data[f'{s} Returns'][data[f'{s} Returns'] < var[s]]
+            cvar_data[s] = lt_var.mean()
+        return cvar_data
+    
 class Var_MC(VaR):
     def __init__(self, stocks, investment, confidence, nDays, start, end, iterations):
         super().__init__(stocks, investment, confidence, nDays, start, end)
@@ -59,6 +68,15 @@ class Var_MC(VaR):
             var_data[s] = np.mean(S - percentile)
         return var_data
     
+    def cvar(self):
+        data = self.returns()
+        var = self.var()
+        cvar_data = {}
+        for s in self.stocks:
+            lt_var = data[f'{s} Returns'][data[f'{s} Returns'] < var[s]]
+            cvar_data[s] = lt_var.mean()
+        return cvar_data
+    
 if __name__ == '__main__':
     start = datetime.datetime(2014, 1, 1)
     end = datetime.datetime(2024, 1, 1)
@@ -68,9 +86,13 @@ if __name__ == '__main__':
     nDays = 1
     var_his = VaR_historical(stocks, investment, confidence, nDays, start, end)
     v = var_his.var()
+    cv = var_his.cvar()
     print(f"Value at risk (Historical method): {v}")
+    print(f"Conditional value at risk (Historical method): {cv}")
 
     iterations = 10000
     var_mc = Var_MC(stocks, investment, confidence, nDays, start, end, iterations)
     v = var_mc.var()
+    cv = var_mc.cvar()
     print(f"Value at risk (Monte Carlo): {v}")
+    print(f"Conditional value at risk (Monte Carlo): {cv}")
