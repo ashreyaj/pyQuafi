@@ -28,7 +28,20 @@ class VaR:
         data.dropna(inplace=True)
         return data
     
-    def var_historical(self):
+    # def var_historical(self):
+    #     data = self.returns()
+    #     var_data = {}
+    #     for s in self.stocks:
+    #         mu = data[f'{s} Returns'].mean()
+    #         sigma = data[f'{s} Returns'].std()
+    #         var_data[s] = self.investment[s] * (mu * self.nDays - np.sqrt(self.nDays) * sigma * norm.ppf(1-self.confidence))
+    #     return var_data
+    
+class VaR_historical(VaR):
+    def __init__(self, stocks, investment, confidence, nDays, start, end):
+        super().__init__(stocks, investment, confidence, nDays, start, end)
+
+    def var(self):
         data = self.returns()
         var_data = {}
         for s in self.stocks:
@@ -62,8 +75,8 @@ if __name__ == '__main__':
     investment = {'AAPL': 1e6, 'GE': 1e6}
     confidence = 0.95
     nDays = 1
-    var = VaR(stocks, investment, confidence, nDays, start, end)
-    v = var.var_historical()
+    var_his = VaR_historical(stocks, investment, confidence, nDays, start, end)
+    v = var_his.var()
     print(f"Value at risk (Historical method): {v}")
 
     iterations = 10000
