@@ -76,15 +76,56 @@ class MonteCarlo(Options):
         return payoffAvg_pv
 
 class Binomial(Options):
-    def __init__(self, S0, K, T, r, N, u, type="C"):
+    def __init__(self, S0, K, T, r, N, type="C", parameter_model=None, sigma=None, u=None):
         super().__init__(S0, K, T, r)
         self.N = N
-        self.u = u
         self.type = type
-        self.d = 1/u
+        self.parameter_model = parameter_model
         self.dt = T/N
-        self.p = (np.exp(r*self.dt) - self.d)/(self.u - self.d)
         self.dis = np.exp(-r*self.dt)
+        self.sigma = sigma
+        self.d = None
+        
+        if parameter_model is None:
+            if u is None:
+                print("For generic binomial tree u value must be given")
+                exit()
+            self.u = u
+            self.d = 1/u
+            self.p = (np.exp(r*self.dt) - self.d)/(self.u - self.d)
+        elif self.parameter_model=="CRR":
+            self.crr()
+        elif self.parameter_model=="JR":
+            self.jr()
+        elif self.parameter_model=="EQP":
+            self.eqp()
+
+    def crr(self):
+        if self.sigma is None:
+            print("Set value for sigma")
+            exit()
+        self.u = np.exp(self.sigma*np.sqrt(self.dt))
+        self.d = 1/self.u
+        self.p = (np.exp(r*self.dt) - self.d)/(self.u - self.d)
+
+    def jr(self):
+        if self.sigma is None:
+            print("Set value for sigma")
+            exit()
+        nu = self.r - 0.5*self.sigma**2
+        self.u = np.exp(nu*self.dt + self.sigma*np.sqrt(self.dt))
+        self.d = np.exp(nu*self.dt - self.sigma*np.sqrt(self.dt))
+        self.p = 0.5
+
+    def eqp(self):
+        if self.sigma is None:
+            print("Set value for sigma")
+            exit()
+        nu = self.r - 0.5*self.sigma**2
+        dxu = 0.5*nu*self.dt + 0.5*np.sqrt(4*self.sigma**2*self.dt - 3*(nu*self.dt)**2)
+        dxd = 1.5*nu*self.dt - 0.5*np.sqrt(4*self.sigma**2*self.dt - 3*(nu*self.dt)**2)
+        self.u = 0.5
+        self.d = 1-self.u
 
     def underlying_at_maturity(self):
         S = np.zeros(self.N+1)
@@ -116,33 +157,38 @@ class Binomial(Options):
 
 if __name__ == '__main__':
     S0 = 100
-    K = 100
+    K = 110
     T = 1
     t = 0.7
     r = 0.06
-    sigma = 0.2
+    sigma = 0.3
+
+    # --- Black Scholes model ---
     bs = BlackScholes(S0, K, T, t, r, sigma)
     call = bs.call()
     put = bs.put()
     print(f"Call price (Black Scholes): {call}")
-    print(f"Put price (Black Scholes): {put}")
+    print(f"Put price (Black Scholes): {put}\n")
 
+    # --- Monte Carlo method ---
     iterations = 10000
     mc = MonteCarlo(S0, K, T, t, r, r, sigma, iterations)
     call = mc.call()
     put = mc.put()
     print(f"Call price (Monte Carlo): {call}")
-    print(f"Put price (Monte Carlo): {put}")
+    print(f"Put price (Monte Carlo): {put}\n")
 
-    N = 10
-    u = 1.03
+    # --- Binomial tree ---
+    T = 0.5
+    N = 1000
     opt_type = "C"
-    bin = Binomial(S0, K, T, r, N, u, opt_type)
+    parameter_model = "CRR"
+    bin = Binomial(S0, K, T, r, N, opt_type, parameter_model, sigma)
     call = bin.option_price()
     opt_type = "P"
-    bin = Binomial(S0, K, T, r, N, u, opt_type)
+    bin = Binomial(S0, K, T, r, N, opt_type, parameter_model, sigma)
     put = bin.option_price()
     print(f"Call price (Binomial): {call}")
-    print(f"Put price (Binomial): {put}")
+    print(f"Put price (Binomial): {put}\n")
 
     
