@@ -25,7 +25,7 @@ pip install numpy scipy pandas matplotlib yfinance notebook
       |-- tvm
       |-- statistics
 ```
-```examples/``` contains a collection of independent [Jupyter notebooks](https://jupyter.org/) on different topics and ```pyQuafi/``` contains the source code.
+```examples/``` contains a collection of partially independent [Jupyter notebooks](https://jupyter.org/) on different topics and ```pyQuafi/``` contains the source code.
 
 ## Authors
 
