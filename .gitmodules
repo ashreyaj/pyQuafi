@@ -1,0 +1,3 @@
+[submodule "examples/algo-trading"]
+	path = examples/algo-trading
+	url = git@github.com:ashreyaj/pyAlgoTrading.git
