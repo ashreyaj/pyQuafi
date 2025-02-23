@@ -1,5 +1,8 @@
 import numpy as np
 from scipy.stats import norm
+from scipy.special import laguerre
+import statsmodels.api as sm
+from wiener import GeometricBrownianMotion
 
 class Options:
     def __init__(self, S0, K, T, r):
@@ -99,6 +102,8 @@ class Binomial(Options):
             self.jr()
         elif self.parameter_model=="EQP":
             self.eqp()
+        elif self.parameter_model=="TRG":
+            self.trg()
 
     def crr(self):
         if self.sigma is None:
@@ -124,14 +129,29 @@ class Binomial(Options):
         nu = self.r - 0.5*self.sigma**2
         dxu = 0.5*nu*self.dt + 0.5*np.sqrt(4*self.sigma**2*self.dt - 3*(nu*self.dt)**2)
         dxd = 1.5*nu*self.dt - 0.5*np.sqrt(4*self.sigma**2*self.dt - 3*(nu*self.dt)**2)
-        self.u = 0.5
-        self.d = 1-self.u
+        self.p = 0.5
+        return dxu, dxd
+    
+    def trg(self):
+        nu = self.r - 0.5*self.sigma**2
+        dxu = np.sqrt(sigma**2*self.dt + nu**2*self.dt**2)
+        dxd = -dxu
+        self.p = 0.5 + 0.5*nu*self.dt/dxu
+        return dxu, dxd
 
     def underlying_at_maturity(self):
         S = np.zeros(self.N+1)
-        S[0] = S0 * self.d**self.N
-        for i in range(1,self.N+1):
-            S[i] = S[i-1] * self.u/self.d
+
+        if self.parameter_model == "EQP" or self.parameter_model == "TRG":
+            dxu, dxd = self.eqp()
+            S[0] = S0*np.exp(N*dxd)
+            for j in range(1,N+1):
+                S[j] = S[j-1]*np.exp(dxu - dxd)
+
+        else:
+            S[0] = S0 * self.d**self.N
+            for i in range(1,self.N+1):
+                S[i] = S[i-1] * self.u/self.d
         return S
 
     def option_at_maturity(self):
@@ -154,16 +174,66 @@ class Binomial(Options):
             for j in range(i):
                 C[j] = self.dis * (self.p*C[j+1] + (1-self.p)*C[j])
         return C[0]
+    
+class LongstaffSchwartz(MonteCarlo):
+    def __init__(self, S0, K, T, t, r, drift, sigma, iterations, steps, type="C", basis_fn="Laguerre", order=5):
+        super().__init__(S0, K, T, t, r, drift, sigma, iterations)
+        self.steps = steps
+        self.type = type
+        self.basis_fn = basis_fn
+        self.order = order
+        self.basis()
+        self.paths()
+        self.payoff()
+
+    def basis(self):
+        if self.basis_fn == "Laguerre":
+            self.basis = [laguerre(i) for i in range(self.order)]
+        else:
+            raise Exception("Basis function not implemented.")
+        
+    def paths(self):
+        dt = T / self.steps
+        paths = np.zeros((self.iterations, self.steps))
+        for i in range(self.iterations):
+            gbm = GeometricBrownianMotion(dt, self.S0, self.drift, self.sigma, self.steps)
+            time, price = gbm.gbm()
+            paths[i] = price
+        self.dt = dt
+        self.time = time
+        self.paths = paths
+    
+    def payoff(self):
+        if self.type == "C":
+            payoff = np.maximum(self.paths - self.K, 0)
+        else:
+            payoff = np.maximum(self.K - self.paths, 0)
+        self.payoff = payoff
+    
+    def option_price(self):
+        value = self.payoff[:, -1]
+        for i in range(self.steps-1, 0, -1):
+            itm = self.payoff[:, i] > 0
+            if not np.any(itm):
+                continue
+            X = np.column_stack(([b(self.paths[itm, i]) for b in self.basis]))
+            Y = self.payoff[itm, i]
+            model = sm.OLS(Y, X).fit()
+            continuation = model.predict(X)
+            exercise = self.payoff[itm, i] > continuation
+            value[itm] = np.where(exercise, self.payoff[itm, i], value[itm]*np.exp(-self.r*self.dt))
+
+        return np.mean(value) * np.exp(-self.r*self.dt)
 
 if __name__ == '__main__':
     S0 = 100
     K = 110
     T = 1
-    t = 0.7
+    t = 0.0
     r = 0.06
     sigma = 0.3
 
-    # --- Black Scholes model ---
+    # # --- Black Scholes model ---
     bs = BlackScholes(S0, K, T, t, r, sigma)
     call = bs.call()
     put = bs.put()
@@ -179,16 +249,26 @@ if __name__ == '__main__':
     print(f"Put price (Monte Carlo): {put}\n")
 
     # --- Binomial tree ---
-    T = 0.5
+    T = 1
     N = 1000
     opt_type = "C"
-    parameter_model = "CRR"
+    parameter_model = "TRG"
     bin = Binomial(S0, K, T, r, N, opt_type, parameter_model, sigma)
     call = bin.option_price()
     opt_type = "P"
     bin = Binomial(S0, K, T, r, N, opt_type, parameter_model, sigma)
     put = bin.option_price()
-    print(f"Call price (Binomial): {call}")
-    print(f"Put price (Binomial): {put}\n")
+    print(f"Call price (Binomial - {parameter_model} method): {call}")
+    print(f"Put price (Binomial - {parameter_model} method): {put}\n")
 
-    
+    # --- Longstaff-Schwartz Monte Carlo ---
+    iterations = 10000
+    opt_type = "C"
+    ls = LongstaffSchwartz(S0, K, T, t, r, r, sigma, iterations, 1000, opt_type, "Laguerre", 3)
+    call = ls.option_price()
+    opt_type = "P"
+    ls = LongstaffSchwartz(S0, K, T, t, r, r, sigma, iterations, 1000, opt_type, "Laguerre", 3)
+    put = ls.option_price()
+
+    print(f"Call price (Longstaff-Schwartz): {call}")
+    print(f"Put price (Longstaff-Schwartz): {put}\n")
